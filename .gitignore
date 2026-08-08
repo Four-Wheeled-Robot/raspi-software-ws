@@ -1,0 +1,40 @@
+# =========================
+# ROS 2 Build Artifacts
+# =========================
+build/
+install/
+log/
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# =========================
+# C/C++
+# =========================
+*.o
+*.ko
+*.obj
+*.elf
+compile_commands.json
+
+# =========================
+# OS / IDE Generated Files
+# =========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.vscode/
+.idea/
+*.swp
+*~
