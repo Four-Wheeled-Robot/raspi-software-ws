@@ -1,0 +1,14 @@
+name: Check commit message format
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    types: [opened, edited, reopened]
+    branches:
+      - main
+
+jobs:
+  check:
+    uses: Four-Wheeled-Robot/.github/.github/workflows/commit-message.yml@main
