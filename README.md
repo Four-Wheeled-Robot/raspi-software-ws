@@ -1,28 +1,80 @@
-# 🤖 ROS 2 Robot Workspace
+# 🤖 ROS 2 Four-Wheeled Robot Workspace
 
-This repository contains the workspace, in which we will develop the software for Raspberry Pi on our four wheeled robot. It is designed to be fully automated and easily deployable across different environments, including local development machines (OrbStack/Docker) and Raspberry Pi hardware.
+This repository contains the software workspace for a four-wheeled robot (supporting Differential and Mecanum/Omni Holonomic drive) running on a Raspberry Pi. It is designed to be highly optimized for real-time embedded systems, modular, and configurable via YAML parameters.
 
 ## 📋 Prerequisites
 
 Before starting, ensure you have the following on your system:
-- **OS**: Ubuntu 24.04.4 LTS (or compatible)
-- **ROS**: Lyrical Luth (or your specific ROS 2 distribution)
+- **OS**: Ubuntu 24.04 LTS (or compatible)
+- **ROS 2**: Jazzy Jalisco / Humble Hawksbill
+- **Build Tools**: `colcon` with symlink support (`sudo apt install python3-colcon-common-extensions`)
 - **Git**: Installed system-wide
 
 ## 📂 Workspace Structure
 
-The workspace is organized into a standard ROS 2 layout. The primary development happens inside the `src` directory, which is divided into four distinct packages:
+The workspace strictly separates hardware abstraction, kinematics computing, user inputs, and launch orchestration:
 
 ```text
 raspi-software-ws/
-└── src/                   # Source code for the workspace
-    ├── fwr_bringup/       # Launch files and global configurations
-    ├── fwr_interfaces/    # Custom ROS 2 Messages (msg) and Services (srv)
-    ├── fwr_teleop/        # Keyboard teleoperation node for Holonomic/Differential control
-    └── fwr_controller/    # Operation packages (Motor drivers, hardware interfaces)
+└── src/                   
+    ├── fwr_bringup/       # Orchestrator: Launch files & YAML parameter configs (ament_cmake)
+    │   ├── config/        # Global parameters (teleop_params.yaml, controller_params.yaml)
+    │   └── launch/        # System launch files (fwr.launch.py)
+    ├── fwr_controller/    # C++ Kinematics Node (Twist -> 4-Wheel RPM)
+    ├── fwr_interfaces/    # Custom ROS 2 Messages (msg), Services (srv), and Actions
+    ├── fwr_teleop/        # Python keyboard teleoperation node (Twist publisher)
+    └── ....               # WIP
 ```
 
-## 🚀 Installation and Build
+## 📐 Kinematics & Control Engine (Optimized C++)
+
+The `fwr_controller` node is written in modern C++ and strictly optimized for **Real-time Embedded Systems (Raspberry Pi / ARM64)**:
+- **Zero Dynamic Allocation:** `std::array` and pre-allocated message buffers ensure no `malloc/new` occurs during runtime callbacks, eliminating CPU overhead and heap fragmentation.
+- **Fused Pre-computation:** Kinematic scale factors and hardware direction multipliers are pre-computed at startup.
+- **Inverse Kinematics:** Converts `geometry_msgs/Twist` (`/cmd_vel`) into a `std_msgs/Float64MultiArray` (`/wheel_speed_cmd`) containing `[FL, FR, RL, RR]` RPM values.
+
+$$\omega_{FL} = \frac{1}{r} \left( v_x - v_y - (L_x + L_y)\omega_z \right) \times dir_{FL}$$
+$$\omega_{FR} = \frac{1}{r} \left( v_x + v_y + (L_x + L_y)\omega_z \right) \times dir_{FR}$$
+$$\omega_{RL} = \frac{1}{r} \left( v_x + v_y - (L_x + L_y)\omega_z \right) \times dir_{RL}$$
+$$\omega_{RR} = \frac{1}{r} \left( v_x - v_y + (L_x + L_y)\omega_z \right) \times dir_{RR}$$
+
+## 🕹️ Keyboard Teleoperation (Python)
+
+The `fwr_teleop` package provides a robust keyboard interface to control the robot manually. Written in Python for easy terminal I/O handling, it features:
+- **Dual Drive Modes:** Supports standard differential driving and full Holonomic/Mecanum strafing (lateral/diagonal movement).
+- **Dynamic Speed Adjustment:** Change linear and angular velocities on-the-fly using predefined speed steps.
+- **Twist & TwistStamped:** Configurable to publish either standard `geometry_msgs/Twist` or time-stamped `TwistStamped` messages based on your navigation stack requirements.
+
+## ⚙️ Configuration (`fwr_bringup/config`)
+
+All parameters are centralized in the `fwr_bringup` package to keep the source code clean. *Note: Topic names are deliberately excluded from YAML to follow ROS 2 Topic Remapping best practices.*
+
+### 1. `controller_params.yaml` (Hardware & Kinematics)
+```yaml
+fwr_controller:
+  ros__parameters:
+    wheel_radius: 0.04          # Wheel radius in meters (40mm)
+    wheel_base_x: 0.125         # Distance from center to front/rear axle (125mm)
+    wheel_base_y: 0.150         # Distance from center to left/right wheel (150mm)
+    max_wheel_rpm: 300.0        # Motor hardware limit
+
+    # Hardware Direction Multiplier [FL, FR, RL, RR]
+    # Change 1.0 to -1.0 to easily invert a motor's direction without rewiring hardware.
+    wheel_direction: [1.0, 1.0, 1.0, 1.0]
+```
+
+### 2. `teleop_params.yaml` (Teleoperation Settings)
+```yaml
+teleop_controller:
+  ros__parameters:
+    speed: 0.5           # Initial linear speed (m/s)
+    turn: 1.0            # Initial angular speed (rad/s)
+    speed_step: 0.1      # Increment step for linear speed
+    turn_step: 0.2       # Increment step for angular speed
+    stamped: false       # Use TwistStamped instead of Twist if true
+```
+
+## 🚀 Installation and Build (Work In Progress)
 
 1. **Clone the repository:**
    ```bash
@@ -30,36 +82,57 @@ raspi-software-ws/
    cd ~/raspi-software-ws
    ```
 
-2. **Build the workspace:**
-   Using `--symlink-install` allows you to modify Python scripts and YAML files without needing to rebuild every time.
+2. **Install dependencies:**
+   ```bash
+   rosdep update
+   rosdep install --from-paths src -y --ignore-src
+   ```
+
+3. **Build the workspace:**
    ```bash
    colcon build --symlink-install
    ```
 
-3. **Source the environment:**
+4. **Source the workspace environment:**
    ```bash
    source install/setup.bash
    ```
-   *(Tip: Run `echo "source ~/raspi-software-ws/install/setup.bash" >> ~/.bashrc` to auto-load the workspace in every new terminal).*
 
-## 🎮 Usage
+## 🎮 Usage (Work In Progress)
 
-For standard operation, especially via SSH to the Raspberry Pi, it is recommended to use two separate terminal sessions.
+For operation via SSH to the Raspberry Pi , use separate terminal sessions (or `tmux`):
 
-### 1. Launch Hardware & Background Nodes
-In **Terminal 1**, start the main robot bringup launch file. This will initialize motor drivers, sensors, and state publishers once they are added to `fwr.launch.py`:
+### 1. Launch the Robot System
+In **Terminal 1**, launch the controller node with YAML parameters applied automatically:
 ```bash
 ros2 launch fwr_bringup fwr.launch.py
 ```
+*(Optional)* If you want to run multiple robots or change topic names, use standard ROS 2 remapping:
+```bash
+ros2 launch fwr_bringup fwr.launch.py cmd_vel:=/robot1/cmd_vel
+```
 
-### 2. Run Teleoperation
-In **Terminal 2**, start the keyboard controller to drive the robot. This node automatically loads default parameters (like speed and turn rate) from the `fwr_bringup` configuration:
+### 2. Run Keyboard Teleoperation
+In **Terminal 2**, start the interactive keyboard controller:
 ```bash
 ros2 run fwr_teleop teleop_controller --ros-args --params-file src/fwr_bringup/config/teleop_params.yaml
 ```
 
+### 3. Monitor Hardware Commands
+In **Terminal 3**, observe the real-time RPM arrays sent to the hardware layer (Arduino/ESP32/Motor Drivers):
+```bash
+ros2 topic echo /wheel_speed_cmd
+```
+
+---
+
 ### ⌨️ Teleop Controls Reference
-- **Normal Drive**: `i` (Forward), `,` (Backward), `j` / `l` (Rotate)
-- **Holonomic / Strafing (Omni-wheels)**: `Shift + J` (Strafe Left), `Shift + L` (Strafe Right)
-- **Stop**: `k` or Spacebar
-- **Speed Control**: `q` / `z` (Increase / Decrease max speed by 10%)
+
+| Action | Standard Mode (Differential) | Holonomic Mode (Omni / Mecanum) |
+| :--- | :--- | :--- |
+| **Move / Translate** | `i` (Forward) / `,` (Backward) | `Shift + I` / `Shift + <` |
+| **Strafe (Lateral)** | *N/A* | `Shift + J` (Left) / `Shift + L` (Right) |
+| **Diagonal** | *N/A* | `Shift + U` / `Shift + O` / `Shift + M` / `Shift + >` |
+| **Rotate** | `j` (Turn Left) / `l` (Turn Right) | `u` / `o` (Turn while moving) |
+| **Stop** | `k` or `Spacebar` | `k` or `Spacebar` |
+| **Speed Adjustment** | `q` / `z` (Increase / Decrease linear speed) | `w` / `x` (Angular speed) |
