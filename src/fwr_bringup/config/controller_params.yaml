@@ -1,0 +1,9 @@
+fwr_controller:
+  ros__parameters:
+    wheel_radius: 0.04          # Wheel radius: 40mm = 0.04m
+    wheel_base_x: 0.125         # Lx: 125mm
+    wheel_base_y: 0.150         # Ly: 150mm
+    max_wheel_rpm: 300.0        # RPM limit from the motor
+    cmd_vel_topic: "/cmd_vel"
+    wheel_speed_topic: "/wheel_speed_cmd"
+    wheel_direction: [1.0, 1.0, 1.0, 1.0]   # [FL, FR, RL, RR] need to be adjusted to fit the direction of rotation of the set of 4 wheels maybe [-1.0, 1.0, -1.0, 1.0]

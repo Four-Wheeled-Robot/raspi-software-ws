@@ -1,0 +1,6 @@
+/**:
+  ros__parameters:
+    stamped: false
+    frame_id: ""
+    speed: 0.5
+    turn: 1.0
